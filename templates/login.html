@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Blog Project{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="card">
+        <div class="card-header text-center">
+            <h3><i class="fas fa-sign-in-alt"></i> Login</h3>
+            <!-- Admin Login Toggle -->
+            <div class="admin-toggle-container mt-3">
+                <div class="form-check form-switch d-inline-block">
+                    <input class="form-check-input" type="checkbox" id="adminToggle" onchange="toggleAdminMode()">
+                    <label class="form-check-label" for="adminToggle">
+                        <i class="fas fa-crown"></i> Admin Login
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Admin Login Notice -->
+            <div id="adminNotice" class="alert alert-warning d-none" role="alert">
+                <i class="fas fa-shield-alt"></i> <strong>Admin Access:</strong> You are logging in as an administrator. This grants access to the admin dashboard and management features.
+            </div>
+            
+            <form id="loginForm" method="POST">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="username" name="username" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="password" name="password" required>
+                </div>
+                
+                <!-- Admin Security Code (only shown in admin mode) -->
+
+                
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary" id="loginButton">
+                        <i class="fas fa-sign-in-alt"></i> Login
+                    </button>
+                </div>
+            </form>
+            
+            <div class="text-center mt-3">
+                <p>Don't have an account? <a href="{{ url_for('auth.signup_page') }}">Sign up here</a></p>
+                <div class="mt-2">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle"></i> 
+                        Admin login provides access to the dashboard and management features.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.admin-toggle-container {
+    background: linear-gradient(45deg, #ff6b6b, #ffa500);
+    padding: 8px 16px;
+    border-radius: 20px;
+    display: inline-block;
+}
+
+.admin-toggle-container .form-check-label {
+    color: white;
+    font-weight: bold;
+    margin-left: 8px;
+}
+
+#adminNotice {
+    border-left: 4px solid #ffc107;
+    background-color: #fff3cd;
+}
+
+.card-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border-radius: 15px;
+}
+
+.auth-container {
+    max-width: 450px;
+    margin: 50px auto;
+    padding: 20px;
+}
+
+#adminSecurityCode {
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background: linear-gradient(45deg, #667eea, #764ba2);
+    border: none;
+    border-radius: 25px;
+    padding: 12px;
+    font-weight: bold;
+    transition: transform 0.2s;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Check if user is already authenticated when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    const token = getToken();
+    if (token) {
+        // User is already authenticated, redirect based on role
+        const userInfo = getCurrentUserInfo();
+        if (userInfo && userInfo.role === 'admin') {
+            window.location.href = '/post/dashboard/';
+        } else {
+            window.location.href = '/post/view_posts/';
+        }
+    }
+});
+
+// Toggle admin mode
+function toggleAdminMode() {
+    const adminToggle = document.getElementById('adminToggle');
+    const adminNotice = document.getElementById('adminNotice');
+    const adminSecurityCode = document.getElementById('adminSecurityCode');
+    const loginButton = document.getElementById('loginButton');
+    
+    if (adminToggle.checked) {
+        // Enable admin mode
+        adminNotice.classList.remove('d-none');
+        adminSecurityCode.classList.remove('d-none');
+        loginButton.innerHTML = '<i class="fas fa-crown"></i> Admin Login';
+        loginButton.classList.add('btn-warning');
+        loginButton.classList.remove('btn-primary');
+        
+        // Add admin-specific styling
+        document.querySelector('.card').style.border = '2px solid #ffc107';
+    } else {
+        // Disable admin mode
+        adminNotice.classList.add('d-none');
+        adminSecurityCode.classList.add('d-none');
+        loginButton.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
+        loginButton.classList.add('btn-primary');
+        loginButton.classList.remove('btn-warning');
+        
+        // Remove admin-specific styling
+        document.querySelector('.card').style.border = 'none';
+    }
+}
+
+document.getElementById('loginForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const adminToggle = document.getElementById('adminToggle');
+    
+    // Add admin mode flag to form data
+    if (adminToggle.checked) {
+        formData.append('admin_mode', 'true');
+    }
+    
+    console.log('Form submitted, sending to /auth/login/');
+    console.log('Admin mode:', adminToggle.checked);
+    
+    fetch('/auth/login/', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        console.log('Response received:', response.status);
+        return response.json().then(data => {
+            return { status: response.status, data: data };
+        });
+    })
+    .then(({ status, data }) => {
+        console.log('Login response:', data);
+        
+        if (status === 200 && data.status === 'success') {
+            console.log('Login successful!');
+            
+            // Store the token and user info
+            const token = data.tokens.access_token;
+            localStorage.setItem('access_token', token);
+            localStorage.setItem('user_info', JSON.stringify(data.user));
+            
+            console.log('Token stored:', token);
+            console.log('User info stored:', data.user);
+            
+            // Show success message based on login type
+            const loginType = adminToggle.checked ? 'Admin login' : 'Login';
+            showAlert(`${loginType} successful! Redirecting...`, 'success');
+            
+            // Redirect based on role and admin mode
+            setTimeout(() => {
+                if (data.user.role === 'admin' || adminToggle.checked) {
+                    window.location.href = '/post/dashboard/';
+                } else {
+                    window.location.href = '/post/view_posts/';
+                }
+            }, 1000);
+            
+        } else {
+            // Handle different error cases
+            let errorMessage = 'Login failed. Please try again.';
+            
+            if (data.message) {
+                if (data.message.includes('Username or password is invalid')) {
+                    errorMessage = 'Invalid username or password. Please check your credentials and try again.';
+                } else if (data.message.includes('Missing required fields')) {
+                    errorMessage = 'Please fill in all required fields.';
+                } else if (data.message.includes('Admin access denied')) {
+                    errorMessage = 'Admin access denied. Please ensure you have admin privileges.';
+                } else {
+                    errorMessage = data.message;
+                }
+            }
+            
+            console.log('Login failed:', errorMessage);
+            showAlert(errorMessage, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        showAlert('Network error: Unable to connect to server. Please check your connection and try again.', 'error');
+    });
+});
+
+function showAlert(message, type) {
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const alertHtml = `
+        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+    
+    // Insert alert at the top of the form
+    const cardBody = document.querySelector('.card-body');
+    cardBody.insertAdjacentHTML('afterbegin', alertHtml);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        const alert = cardBody.querySelector('.alert');
+        if (alert) {
+            const bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

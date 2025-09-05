@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - Bits & Blogs{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-tachometer-alt"></i> Admin Dashboard</h2>
+                <div class="admin-badge">
+                    <i class="fas fa-crown"></i> ADMIN
+                </div>
+            </div>
+            
+            <!-- Admin Stats -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 id="totalPosts">-</h4>
+                                    <p class="mb-0">Total Posts</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-newspaper fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 id="totalComments">-</h4>
+                                    <p class="mb-0">Total Comments</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-comments fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 id="totalUsers">-</h4>
+                                    <p class="mb-0">Total Users</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-users fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 id="totalLikes">-</h4>
+                                    <p class="mb-0">Total Likes</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-heart fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Admin Actions -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-tools"></i> Admin Actions</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <a href="{{ url_for('post.create_post_page') }}" class="btn btn-primary w-100">
+                                        <i class="fas fa-plus"></i> Create New Post
+                                    </a>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <a href="{{ url_for('post.all_posts_page') }}" class="btn btn-info w-100">
+                                        <i class="fas fa-list"></i> Manage All Posts
+                                    </a>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <button class="btn btn-warning w-100" onclick="refreshStats()">
+                                        <i class="fas fa-sync"></i> Refresh Stats
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recent Posts -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-clock"></i> Recent Posts</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="recentPosts">
+                                <!-- Recent posts will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.admin-badge {
+    background: linear-gradient(45deg, #ff6b6b, #ffa500);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+.recent-post-item {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.recent-post-item:last-child {
+    border-bottom: none;
+}
+
+.post-meta-small {
+    font-size: 0.8rem;
+    color: #666;
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async function() {
+    // Check if user is admin
+    const token = getToken();
+    if (!token) {
+        window.location.href = "{{ url_for('auth.login_page') }}";
+        return;
+    }
+    
+    // Check user role
+    let userInfo = getCurrentUserInfo();
+    if (!userInfo) {
+        userInfo = await fetchUserInfo();
+    }
+    
+    if (!userInfo || userInfo.role !== 'admin') {
+        alert('Access denied. Admin privileges required.');
+        window.location.href = "{{ url_for('post.all_posts_page') }}";
+        return;
+    }
+    
+    updateNavigation();
+    loadStats();
+    loadRecentPosts();
+});
+
+function loadStats() {
+    // This would typically call an admin stats endpoint
+    loadPosts();
+    loadUsersCount();
+}
+
+function loadUsersCount() {
+    const token = getToken();
+    if (!token) return;
+
+    fetch('/auth/get-user-info/', {
+        method: 'GET',
+        headers: {
+            'Authorization': 'Bearer ' + token
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data && data.status === 'success') {
+            document.getElementById('totalUsers').textContent = '1';
+        }
+    })
+    .catch(error => {
+        console.error('Error loading user count:', error);
+        document.getElementById('totalUsers').textContent = '0';
+    });
+}
+
+function loadPosts() {
+    const token = getToken();
+    if (!token) return;
+
+    fetch('/post/view_post/', {
+        method: 'GET',
+        headers: {
+            'Authorization': 'Bearer ' + token
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data && data.posts) {
+            // Update stats
+            document.getElementById('totalPosts').textContent = data.posts.length;
+            
+            // Calculate total comments and likes
+            let totalComments = 0;
+            let totalLikes = 0;
+            
+            data.posts.forEach(post => {
+                totalLikes += post.like_count || 0;
+            });
+            
+            document.getElementById('totalLikes').textContent = totalLikes;
+            
+            // Load comments for each post to get total count
+            loadCommentsCount(data.posts);
+            
+            // Display recent posts
+            displayRecentPosts(data.posts.slice(0, 5));
+        }
+    })
+    .catch(error => {
+        console.error('Error loading stats:', error);
+    });
+}
+
+function loadCommentsCount(posts) {
+    const token = getToken();
+    if (!token) return;
+    
+    let totalComments = 0;
+    let loadedPosts = 0;
+    
+    posts.forEach(post => {
+        fetch(`/comment/post/${post.post_id}/comments/`, {
+            method: 'GET',
+            headers: {
+                'Authorization': 'Bearer ' + token
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (Array.isArray(data)) {
+                totalComments += data.length;
+            }
+            loadedPosts++;
+            
+            if (loadedPosts === posts.length) {
+                document.getElementById('totalComments').textContent = totalComments;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading comments for post:', post.post_id, error);
+            loadedPosts++;
+        });
+    });
+}
+
+function displayRecentPosts(posts) {
+    const container = document.getElementById('recentPosts');
+    
+    if (posts.length === 0) {
+        container.innerHTML = '<p class="text-muted">No posts available.</p>';
+        return;
+    }
+    
+    let html = '';
+    posts.forEach(post => {
+        const createdDate = post.created_at ? new Date(post.created_at).toLocaleDateString() : 'Unknown';
+        html += `
+            <div class="recent-post-item">
+                <div>
+                    <h6 class="mb-1">${post.title}</h6>
+                    <p class="post-meta-small mb-0">
+                        <i class="fas fa-user"></i> ${post.author_username} | 
+                        <i class="fas fa-calendar"></i> ${createdDate} |
+                        <i class="fas fa-heart"></i> ${post.like_count || 0} likes
+                    </p>
+                </div>
+                <div>
+                    <a href="/post/detail/${post.post_id}/" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-eye"></i> View
+                    </a>
+                    <a href="/post/edit/${post.post_id}/" class="btn btn-sm btn-outline-warning">
+                        <i class="fas fa-edit"></i> Edit
+                    </a>
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+function refreshStats() {
+    showAlert('Refreshing stats...', 'info');
+    loadStats();
+}
+
+function showAlert(message, type) {
+    const alertClass = type === 'success' ? 'alert-success' : 
+                      type === 'error' ? 'alert-danger' : 
+                      type === 'info' ? 'alert-info' : 'alert-warning';
+    const alertHtml = `
+        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+    
+    // Insert alert at the top of the page
+    const container = document.querySelector('.container-fluid');
+    container.insertAdjacentHTML('afterbegin', alertHtml);
+    
+    // Auto-dismiss after 3 seconds
+    setTimeout(() => {
+        const alert = container.querySelector('.alert');
+        if (alert) {
+            const bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        }
+    }, 3000);
+}
+</script>
+{% endblock %}

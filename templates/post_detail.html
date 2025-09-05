@@ -1,0 +1,597 @@
+{% extends "base.html" %}
+
+{% block title %}Post Detail - Bits & Blogs{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div id="postDetail">
+            <!-- Post content will be loaded here -->
+        </div>
+        
+        <!-- Comments Section -->
+        <div class="comment-section">
+            <h4><i class="fas fa-comments"></i> Comments</h4>
+            
+            <!-- Add Comment Form -->
+            <form id="addCommentForm" class="mb-4">
+                <div class="mb-3">
+                    <textarea class="form-control" id="commentContent" name="content" rows="3" placeholder="Write a comment..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-comment"></i> Add Comment
+                </button>
+            </form>
+            
+            <!-- Comments List -->
+            <div id="commentsList">
+                <!-- Comments will be loaded here -->
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>Actions</h5>
+            </div>
+            <div class="card-body">
+                <a href="{{ url_for('post.all_posts_page') }}" class="btn btn-secondary btn-sm mb-2">
+                    <i class="fas fa-arrow-left"></i> Back to Posts
+                </a>
+                
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Comment Confirmation Modal -->
+<div class="modal fade" id="deleteCommentModal" tabindex="-1" aria-labelledby="deleteCommentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteCommentModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to delete this comment? This action cannot be undone.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteComment">Delete Comment</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Comment Modal -->
+<div class="modal fade" id="editCommentModal" tabindex="-1" aria-labelledby="editCommentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editCommentModalLabel">Edit Comment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editCommentForm">
+                    <div class="mb-3">
+                        <textarea class="form-control" id="editCommentContent" name="content" rows="3" required></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveEditComment">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.like-button {
+    background: #e74c3c;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+}
+
+.like-button:hover {
+    background: #c0392b;
+    color: white;
+}
+
+.like-button.liked {
+    background: #27ae60;
+}
+
+.like-button.liked:hover {
+    background: #229954;
+}
+
+.like-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.like-count {
+    font-weight: 500;
+    color: #666;
+}
+
+.post-actions-detail {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.comment-card {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    transition: box-shadow 0.3s ease;
+    background: white;
+}
+
+.comment-card:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.comment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    padding: 15px 15px 0 15px;
+}
+
+.comment-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.comment-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.btn-comment-action {
+    padding: 4px 8px;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.btn-edit-comment {
+    background: #ffc107;
+    color: #212529;
+}
+
+.btn-edit-comment:hover {
+    background: #e0a800;
+    color: #212529;
+}
+
+.btn-delete-comment {
+    background: #dc3545;
+    color: white;
+}
+
+.btn-delete-comment:hover {
+    background: #c82333;
+    color: white;
+}
+
+.comment-content {
+    color: #333;
+    line-height: 1.5;
+    margin-bottom: 10px;
+    padding: 0 15px;
+}
+
+.comment-date {
+    font-size: 0.8rem;
+    color: #999;
+    padding: 0 15px 15px 15px;
+}
+
+.comment-footer {
+    padding: 0 15px 15px 15px;
+}
+
+.unauthorized-message {
+    color: #dc3545;
+    font-size: 0.8rem;
+    font-style: italic;
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Get post ID from URL
+const postId = window.location.pathname.split('/').filter(part => part).pop();
+let currentCommentId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadPostDetail();
+    loadComments();
+    
+    // Delete comment confirmation modal
+    document.getElementById('confirmDeleteComment').addEventListener('click', function() {
+        if (currentCommentId) {
+            deleteComment(currentCommentId);
+        }
+    });
+    
+    // Edit comment modal
+    document.getElementById('saveEditComment').addEventListener('click', function() {
+        if (currentCommentId) {
+            saveEditComment(currentCommentId);
+        }
+    });
+});
+
+function loadPostDetail() {
+    const token = getToken();
+    
+    fetch('/post/view_post/', {
+        method: 'GET',
+        headers: {
+            'Authorization': 'Bearer ' + token
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.posts) {
+            const post = data.posts.find(p => p.post_id == postId);
+            if (post) {
+                displayPostDetail(post);
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error loading post:', error);
+    });
+}
+
+function displayPostDetail(post) {
+    const container = document.getElementById('postDetail');
+    const currentUserId = getCurrentUserId();
+    
+    container.innerHTML = `
+        <div class="card">
+            <div class="card-body">
+                <h2 class="card-title">${post.title}</h2>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <small class="text-muted">
+                        <i class="fas fa-user"></i> ${post.author_username} | 
+                        <i class="fas fa-calendar"></i> ${new Date(post.created_at).toLocaleDateString()}
+                    </small>
+                </div>
+                <div class="post-actions-detail">
+                    <button class="like-button ${post.is_liked ? 'liked' : ''}" onclick="toggleLike('${post.post_id}', this)">
+                        <i class="fas fa-heart"></i> 
+                        <span class="like-count">${post.like_count || 0}</span>
+                    </button>
+                </div>
+                <p class="card-text">${post.content}</p>
+                ${post.image_url ? `<img src="${post.image_url}" class="img-fluid" alt="Post image">` : ''}
+            </div>
+        </div>
+    `;
+    
+    // Add edit/delete buttons if user owns the post
+    if (post.author_id == currentUserId) {
+        const postActions = document.getElementById('postActions');
+        postActions.innerHTML = `
+            <a href="/post/edit/${post.post_id}/" class="btn btn-warning btn-sm mb-2">
+                <i class="fas fa-edit"></i> Edit Post
+            </a>
+            <button class="btn btn-danger btn-sm" onclick="showDeleteModal('${post.post_id}')">
+                <i class="fas fa-trash"></i> Delete Post
+            </button>
+        `;
+    }
+}
+
+function toggleLike(postId, buttonElement) {
+    const token = getToken();
+    if (!token) {
+        window.location.href = "{{ url_for('auth.login') }}";
+        return;
+    }
+
+    fetch(`/post/like_post/${postId}/`, {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            const likeCountSpan = buttonElement.querySelector('.like-count');
+            likeCountSpan.textContent = data.like_count;
+            
+            if (data.liked) {
+                buttonElement.classList.add('liked');
+            } else {
+                buttonElement.classList.remove('liked');
+            }
+        } else {
+            showAlert(data.message || 'Error updating like', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error toggling like:', error);
+        showAlert('Error updating like. Please try again.', 'error');
+    });
+}
+
+function getCurrentUserId() {
+    const token = getToken();
+    if (token) {
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            return payload.sub; // Assuming 'sub' contains user ID
+        } catch (e) {
+            console.error('Error decoding token:', e);
+            return null;
+        }
+    }
+    return null;
+}
+
+function showDeleteModal(postId) {
+    if (confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
+        deletePost(postId);
+    }
+}
+
+function deletePost(postId) {
+    const token = getToken();
+    if (!token) {
+        window.location.href = "{{ url_for('auth.login') }}";
+        return;
+    }
+
+    fetch(`/post/delete_post/${postId}/`, {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showAlert('Post deleted successfully!', 'success');
+            window.location.href = "{{ url_for('post.all_posts_page') }}";
+        } else {
+            showAlert(data.message || 'Error deleting post', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting post:', error);
+        showAlert('Error deleting post. Please try again.', 'error');
+    });
+}
+
+function loadComments() {
+    const token = getToken();
+    
+    fetch(`/comment/post/${postId}/comments/`, {
+        method: 'GET',
+        headers: {
+            'Authorization': 'Bearer ' + token
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        displayComments(data);
+    })
+    .catch(error => {
+        console.error('Error loading comments:', error);
+    });
+}
+
+function displayComments(comments) {
+    const container = document.getElementById('commentsList');
+    
+    if (comments.length === 0) {
+        container.innerHTML = '<p class="text-muted">No comments yet. Be the first to comment!</p>';
+        return;
+    }
+    
+    container.innerHTML = comments.map(comment => {
+        const commentDate = comment.created_at ? new Date(comment.created_at).toLocaleDateString() : 'Unknown';
+        const currentUserId = getCurrentUserId();
+        
+        return `
+            <div class="comment-card">
+                <div class="comment-header">
+                    <div class="comment-meta">
+                        <i class="fas fa-user"></i>
+                        <span>${comment.username}</span>
+                    </div>
+                    ${comment.is_owner ? `
+                        <div class="comment-actions">
+                            <button class="btn-comment-action btn-edit-comment" onclick="showEditCommentModal('${comment.cid}', '${comment.content.replace(/'/g, "\\'")}')">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button class="btn-comment-action btn-delete-comment" onclick="showDeleteCommentModal('${comment.cid}')">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </div>
+                    ` : ''}
+                </div>
+                <div class="comment-content">${comment.content}</div>
+                <div class="comment-date">
+                    <i class="fas fa-clock"></i> ${commentDate}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function showEditCommentModal(commentId, currentContent) {
+    currentCommentId = commentId;
+    document.getElementById('editCommentContent').value = currentContent;
+    const modal = new bootstrap.Modal(document.getElementById('editCommentModal'));
+    modal.show();
+}
+
+function saveEditComment(commentId) {
+    const newContent = document.getElementById('editCommentContent').value.trim();
+    
+    if (!newContent) {
+        showAlert('Comment content cannot be empty', 'error');
+        return;
+    }
+    
+    const token = getToken();
+    if (!token) {
+        window.location.href = "{{ url_for('auth.login') }}";
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('content', newContent);
+    
+    fetch(`/comment/post/${postId}/edit/${commentId}/`, {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + token
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('editCommentModal'));
+            modal.hide();
+            
+            showAlert('Comment updated successfully!', 'success');
+            loadComments(); // Reload comments
+        } else {
+            showAlert(data.message || 'Error updating comment', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating comment:', error);
+        showAlert('Error updating comment. Please try again.', 'error');
+    });
+}
+
+function showDeleteCommentModal(commentId) {
+    currentCommentId = commentId;
+    const modal = new bootstrap.Modal(document.getElementById('deleteCommentModal'));
+    modal.show();
+}
+
+function deleteComment(commentId) {
+    const token = getToken();
+    if (!token) {
+        window.location.href = "{{ url_for('auth.login') }}";
+        return;
+    }
+
+    fetch(`/comment/post/${postId}/delete/${commentId}/`, {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteCommentModal'));
+            modal.hide();
+            
+            showAlert('Comment deleted successfully!', 'success');
+            loadComments(); // Reload comments
+        } else {
+            showAlert(data.message || 'Error deleting comment', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting comment:', error);
+        showAlert('Error deleting comment. Please try again.', 'error');
+    });
+}
+
+function showAlert(message, type) {
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const alertHtml = `
+        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+    
+    // Insert alert at the top of the page
+    const container = document.querySelector('.row');
+    container.insertAdjacentHTML('afterbegin', alertHtml);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        const alert = container.querySelector('.alert');
+        if (alert) {
+            const bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        }
+    }, 5000);
+}
+
+// Add Comment
+document.getElementById('addCommentForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const token = getToken();
+    
+    fetch(`/comment/post/${postId}/add/`, {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + token
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showAlert('Comment added successfully!', 'success');
+            document.getElementById('commentContent').value = '';
+            loadComments(); // Reload comments
+        } else {
+            showAlert('Error: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('An error occurred while adding the comment.', 'error');
+    });
+});
+</script>
+{% endblock %}

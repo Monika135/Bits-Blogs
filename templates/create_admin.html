@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Create Admin Account - Bits & Blogs{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="card">
+        <div class="card-header text-center">
+            <h3><i class="fas fa-user-shield"></i> Create Admin Account</h3>
+            <p class="text-muted mb-0">Create the first admin account for the system</p>
+        </div>
+        <div class="card-body">
+            <form id="createAdminForm" method="POST">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" class="form-control" id="username" name="username" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" class="form-control" id="email" name="email" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="first_name" class="form-label">First Name</label>
+                    <input type="text" class="form-control" id="first_name" name="first_name" required>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="last_name" class="form-label">Last Name</label>
+                    <input type="text" class="form-control" id="last_name" name="last_name">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" class="form-control" id="password" name="password" required>
+                    <div class="form-text">Password must be at least 8 characters with uppercase, lowercase, numbers, and special characters.</div>
+                </div>
+
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-user-shield"></i> Create Admin Account
+                    </button>
+                </div>
+            </form>
+            
+            <div class="text-center mt-3">
+                <p>Already have an account? <a href="{{ url_for('auth.login_page') }}">Login here</a></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('createAdminForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    console.log('Creating admin account...');
+    
+    fetch('/auth/create-admin/', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        console.log('Response received:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Admin creation response:', data);
+        
+        if (data.status === 'success') {
+            showAlert('Admin account created successfully! You can now login.', 'success');
+            
+            // Redirect to login after 2 seconds
+            setTimeout(() => {
+                window.location.href = "{{ url_for('auth.login_page') }}";
+            }, 2000);
+            
+        } else {
+            showAlert('Error: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        showAlert('Network error: ' + error.message, 'error');
+    });
+});
+
+function showAlert(message, type) {
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const alertHtml = `
+        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+    
+    // Insert alert at the top of the form
+    const cardBody = document.querySelector('.card-body');
+    cardBody.insertAdjacentHTML('afterbegin', alertHtml);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        const alert = cardBody.querySelector('.alert');
+        if (alert) {
+            const bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

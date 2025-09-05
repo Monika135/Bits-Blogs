@@ -1,0 +1,499 @@
+{% extends "base.html" %}
+
+{% block title %}All Posts - Bits & Blogs{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-newspaper"></i> All Posts</h2>
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('post.create_post_page') }}" class="btn btn-primary" id="createPostBtn" style="display: none;">
+                        <i class="fas fa-plus"></i> Create New Post
+                    </a>
+                </div>
+            </div>
+            
+            <div id="postsContainer" class="posts-grid">
+                <!-- Posts will be loaded here via JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to delete this post? This action cannot be undone.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDelete">Delete Post</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.posts-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    justify-content: flex-start;
+}
+
+.post-card {
+    flex: 1 1 300px;
+    max-width: 450px;
+    min-height: 250px;
+    display: flex;
+    flex-direction: column;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    position: relative;
+}
+
+.post-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.post-image {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-bottom: 1px solid #eee;
+}
+
+.post-content {
+    padding: 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.post-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #333;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.post-text {
+    color: #666;
+    line-height: 1.5;
+    margin-bottom: 15px;
+    flex: 1;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.post-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    font-size: 0.9rem;
+    color: #888;
+}
+
+.post-actions {
+    margin-top: auto;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn-action {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.btn-read {
+    background: #007bff;
+    color: white;
+}
+
+.btn-read:hover {
+    background: #0056b3;
+    color: white;
+}
+
+.btn-like {
+    background: #f8f9fa;
+    color: #6c757d;
+    border: 1px solid #dee2e6;
+}
+
+.btn-like.liked {
+    background: #dc3545;
+    color: white;
+    border-color: #dc3545;
+}
+
+.btn-like:hover {
+    background: #e9ecef;
+    color: #495057;
+}
+
+.btn-like.liked:hover {
+    background: #c82333;
+    color: white;
+}
+
+.btn-comment {
+    background: #28a745;
+    color: white;
+}
+
+.btn-comment:hover {
+    background: #1e7e34;
+    color: white;
+}
+
+.btn-edit {
+    background: #ffc107;
+    color: #212529;
+}
+
+.btn-edit:hover {
+    background: #e0a800;
+    color: #212529;
+}
+
+.btn-delete {
+    background: #dc3545;
+    color: white;
+}
+
+.btn-delete:hover {
+    background: #c82333;
+    color: white;
+}
+
+.like-info {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.like-count {
+    font-weight: 500;
+}
+
+.admin-actions {
+    background: linear-gradient(45deg, #ff6b6b, #ffa500);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: bold;
+    margin-left: 5px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .posts-grid {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .post-card {
+        flex: none;
+        max-width: none;
+    }
+    
+    .action-buttons {
+        flex-wrap: wrap;
+    }
+    
+    .btn-action {
+        font-size: 0.8rem;
+        padding: 5px 10px;
+    }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+    .post-card {
+        flex: 1 1 45%;
+    }
+}
+
+@media (min-width: 1025px) {
+    .post-card {
+        flex: 1 1 30%;
+    }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPostId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    const token = getToken();
+    if (!token) {
+        window.location.href = "{{ url_for('auth.login_page') }}";
+        return;
+    }
+    
+    // Update navigation and show create button
+    updateNavigation();
+    document.getElementById('createPostBtn').style.display = 'block';
+    
+    loadPosts();
+    
+    // Delete confirmation modal
+    document.getElementById('confirmDelete').addEventListener('click', function() {
+        if (currentPostId) {
+            deletePost(currentPostId);
+        }
+    });
+});
+
+function loadPosts() {
+    const token = getToken();
+    if (!token) {
+        window.location.href = "{{ url_for('auth.login') }}";
+        return;
+    }
+
+    fetch('/post/view_post/', {
+        method: 'GET',
+        headers: {
+            'Authorization': 'Bearer ' + token
+        }
+    })
+    .then(response => {
+        if (response.status === 401) {
+            removeToken();
+            return;
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data && data.posts) {
+            displayPosts(data.posts);
+        } else if (data && data.message) {
+            document.getElementById('postsContainer').innerHTML = 
+                `<div class="alert alert-warning">${data.message}</div>`;
+        } else {
+            document.getElementById('postsContainer').innerHTML = 
+                '<div class="alert alert-info">No posts available.</div>';
+        }
+    })
+    .catch(error => {
+        console.error('Error loading posts:', error);
+        document.getElementById('postsContainer').innerHTML = 
+            '<div class="alert alert-danger">Error loading posts. Please try again.</div>';
+    });
+}
+
+function displayPosts(posts) {
+    const container = document.getElementById('postsContainer');
+    
+    if (posts.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No posts available.</div>';
+        return;
+    }
+
+    let html = '';
+    posts.forEach(post => {
+        const createdDate = post.created_at ? new Date(post.created_at).toLocaleDateString() : 'Unknown';
+        const currentUserId = getCurrentUserId();
+        const userInfo = getCurrentUserInfo();
+        
+        // Check if user can edit/delete this post
+        const canEdit = post.can_edit || false;
+        const canDelete = post.can_delete || false;
+        const isOwner = post.author_id == currentUserId;
+        const isAdmin = userInfo && userInfo.role === 'admin';
+        
+        html += `
+            <div class="post-card">
+                ${post.image_url ? `<img src="${post.image_url}" class="post-image" alt="${post.title}">` : ''}
+                <div class="post-content">
+                    <h5 class="post-title">${post.title}</h5>
+                    <p class="post-text">${post.content}</p>
+                    <div class="post-meta">
+                        <span><i class="fas fa-user"></i> ${post.author_username}</span>
+                        <span><i class="fas fa-calendar"></i> ${createdDate}</span>
+                    </div>
+                    <div class="post-actions">
+                        <div class="action-buttons">
+                            <a href="/post/detail/${post.post_id}/" class="btn-action btn-read">
+                                <i class="fas fa-eye"></i> Read
+                            </a>
+                            <button class="btn-action btn-like ${post.is_liked ? 'liked' : ''}" onclick="toggleLike('${post.post_id}', this)">
+                                <i class="fas fa-heart"></i> 
+                                <span class="like-count">${post.like_count || 0}</span>
+                            </button>
+                            <a href="/post/detail/${post.post_id}/#comments" class="btn-action btn-comment">
+                                <i class="fas fa-comment"></i> Comment
+                            </a>
+                            ${canEdit ? `
+                                <a href="/post/edit/${post.post_id}/" class="btn-action btn-edit">
+                                    <i class="fas fa-edit"></i> Edit
+                                    ${isAdmin && !isOwner ? '<span class="admin-actions">ADMIN</span>' : ''}
+                                </a>
+                            ` : ''}
+                            ${canDelete ? `
+                                <button class="btn-action btn-delete" onclick="showDeleteModal('${post.post_id}')">
+                                    <i class="fas fa-trash"></i> Delete
+                                    ${isAdmin && !isOwner ? '<span class="admin-actions">ADMIN</span>' : ''}
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+function toggleLike(postId, buttonElement) {
+    const token = getToken();
+    if (!token) {
+        window.location.href = "{{ url_for('auth.login') }}";
+        return;
+    }
+
+    fetch(`/post/like_post/${postId}/`, {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            const likeCountSpan = buttonElement.querySelector('.like-count');
+            likeCountSpan.textContent = data.like_count;
+            
+            if (data.liked) {
+                buttonElement.classList.add('liked');
+            } else {
+                buttonElement.classList.remove('liked');
+            }
+        } else {
+            showAlert(data.message || 'Error updating like', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error toggling like:', error);
+        showAlert('Error updating like. Please try again.', 'error');
+    });
+}
+
+function getCurrentUserId() {
+    const token = getToken();
+    if (token) {
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            return payload.sub; // Assuming 'sub' contains user ID
+        } catch (e) {
+            console.error('Error decoding token:', e);
+            return null;
+        }
+    }
+    return null;
+}
+
+function showDeleteModal(postId) {
+    currentPostId = postId;
+    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    modal.show();
+}
+
+function deletePost(postId) {
+    const token = getToken();
+    if (!token) {
+        window.location.href = "{{ url_for('auth.login') }}";
+        return;
+    }
+
+    fetch(`/post/delete_post/${postId}/`, {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
+            modal.hide();
+            
+            // Show success message
+            showAlert('Post deleted successfully!', 'success');
+            
+            // Reload posts
+            loadPosts();
+        } else {
+            showAlert(data.message || 'Error deleting post', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error deleting post:', error);
+        showAlert('Error deleting post. Please try again.', 'error');
+    });
+}
+
+function showAlert(message, type) {
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const alertHtml = `
+        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+    
+    // Insert alert at the top of the page
+    const container = document.querySelector('.container-fluid');
+    container.insertAdjacentHTML('afterbegin', alertHtml);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        const alert = container.querySelector('.alert');
+        if (alert) {
+            const bsAlert = new bootstrap.Alert(alert);
+            bsAlert.close();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}
