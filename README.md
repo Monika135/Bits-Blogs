@@ -22,7 +22,6 @@ Designed with **security, scalability, and modern web practices** in mind.
 
 ### 💬 Commenting System  
 ✔️ Add comments on posts  
-✔️ Support for **nested replies**  
 ✔️ Edit & delete comments  
 ✔️ Role-based permissions  
 
