@@ -87,6 +87,13 @@
     </div>
 </div>
 
+
+<!-- live comments (client-rendered) -->
+<div class="post-card" id="livePostCard" data-post-id=""></div>
+
+
+
+
 <style>
 .like-button {
     background: #e74c3c;
@@ -232,6 +239,38 @@ let currentCommentId = null;
 document.addEventListener('DOMContentLoaded', function() {
     loadPostDetail();
     loadComments();
+    // Join room for this post
+    if (window.socket) {
+        window.socket.emit('join_post', { post_id: postId });
+        // Listen for new comments
+        window.socket.on('comment_broadcast', data => {
+            if (String(data.post_id) === String(postId)) {
+                const container = document.getElementById('commentsList');
+                const html = `<div class="comment-card" id="comment-${data.comment_id}"><div class="comment-content">${data.content}</div><div class="comment-date">${new Date(data.created_at).toLocaleString()}</div></div>`;
+                container.insertAdjacentHTML('beforeend', html);
+            }
+        });
+        // Notifications
+        window.socket.on('notification', data => {
+            showAlert(data.msg, 'success');
+        });
+        // Like updates
+        window.socket.on('like_update', data => {
+            if (String(data.post_id) === String(postId)) {
+                const countEl = document.querySelector('.like-button .like-count');
+                if (countEl) countEl.textContent = data.like_count;
+            }
+        });
+        // Comment deletions
+        window.socket.on('comment_deleted', data => {
+            if (String(data.post_id) === String(postId) && Array.isArray(data.deleted_comment_ids)) {
+                data.deleted_comment_ids.forEach(id => {
+                    const el = document.getElementById(`comment-${id}`);
+                    if (el && el.parentNode) el.parentNode.removeChild(el);
+                });
+            }
+        });
+    }
     
     // Delete comment confirmation modal
     document.getElementById('confirmDeleteComment').addEventListener('click', function() {
@@ -336,6 +375,10 @@ function toggleLike(postId, buttonElement) {
             } else {
                 buttonElement.classList.remove('liked');
             }
+            // Notify others via Socket.IO
+            if (window.socket) {
+                window.socket.emit('like_post', { post_id: postId, token: token });
+            }
         } else {
             showAlert(data.message || 'Error updating like', 'error');
         }
@@ -421,35 +464,56 @@ function displayComments(comments) {
         return;
     }
     
-    container.innerHTML = comments.map(comment => {
+    function renderComment(comment, depth) {
         const commentDate = comment.created_at ? new Date(comment.created_at).toLocaleDateString() : 'Unknown';
-        const currentUserId = getCurrentUserId();
-        
+        const safeContentForAttr = (comment.content || '').replace(/'/g, "\\'").replace(/\n/g, ' ');
+        const replies = Array.isArray(comment.replies) ? comment.replies : [];
+        const indent = Math.min(depth, 6) * 16; // cap indent
+        const replyFormId = `reply-form-${comment.cid}`;
+        const replyTextareaId = `reply-textarea-${comment.cid}`;
+
         return `
-            <div class="comment-card">
+            <div class="comment-card" id="comment-${comment.cid}" style="margin-left: ${indent}px;">
                 <div class="comment-header">
                     <div class="comment-meta">
                         <i class="fas fa-user"></i>
                         <span>${comment.username}</span>
                     </div>
-                    ${comment.is_owner ? `
-                        <div class="comment-actions">
-                            <button class="btn-comment-action btn-edit-comment" onclick="showEditCommentModal('${comment.cid}', '${comment.content.replace(/'/g, "\\'")}')">
+                    <div class="comment-actions">
+                        <button class="btn-comment-action" onclick="toggleReplyForm('${replyFormId}')">
+                            <i class="fas fa-reply"></i> Reply
+                        </button>
+                        ${comment.is_owner ? `
+                            <button class="btn-comment-action btn-edit-comment" onclick="showEditCommentModal('${comment.cid}', '${safeContentForAttr}')">
                                 <i class="fas fa-edit"></i> Edit
                             </button>
                             <button class="btn-comment-action btn-delete-comment" onclick="showDeleteCommentModal('${comment.cid}')">
                                 <i class="fas fa-trash"></i> Delete
                             </button>
-                        </div>
-                    ` : ''}
+                        ` : ''}
+                    </div>
                 </div>
                 <div class="comment-content">${comment.content}</div>
                 <div class="comment-date">
                     <i class="fas fa-clock"></i> ${commentDate}
                 </div>
+                <div class="comment-footer">
+                    <form id="${replyFormId}" class="mb-3" style="display: none;">
+                        <div class="mb-2">
+                            <textarea class="form-control" id="${replyTextareaId}" rows="2" placeholder="Write a reply..."></textarea>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="submitReply('${comment.cid}', '${replyTextareaId}', '${replyFormId}')">
+                            <i class="fas fa-paper-plane"></i> Reply
+                        </button>
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="toggleReplyForm('${replyFormId}')">Cancel</button>
+                    </form>
+                </div>
             </div>
+            ${replies.map(child => renderComment(child, depth + 1)).join('')}
         `;
-    }).join('');
+    }
+
+    container.innerHTML = comments.map(c => renderComment(c, 0)).join('');
 }
 
 function showEditCommentModal(commentId, currentContent) {
@@ -506,6 +570,54 @@ function showDeleteCommentModal(commentId) {
     currentCommentId = commentId;
     const modal = new bootstrap.Modal(document.getElementById('deleteCommentModal'));
     modal.show();
+}
+
+function toggleReplyForm(formId) {
+    const formEl = document.getElementById(formId);
+    if (formEl) {
+        formEl.style.display = formEl.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+function submitReply(parentCommentId, textareaId, formId) {
+    const token = getToken();
+    if (!token) {
+        window.location.href = "{{ url_for('auth.login_page') }}";
+        return;
+    }
+
+    const textarea = document.getElementById(textareaId);
+    const content = (textarea && textarea.value ? textarea.value.trim() : '');
+    if (!content) {
+        showAlert('Reply cannot be empty', 'error');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('content', content);
+    formData.append('parent_comment_id', parentCommentId);
+
+    fetch(`/comment/post/${postId}/add/`, {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + token
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            if (textarea) textarea.value = '';
+            toggleReplyForm(formId);
+            loadComments();
+        } else {
+            showAlert(data.message || 'Error adding reply', 'error');
+        }
+    })
+    .catch(err => {
+        console.error('Error adding reply:', err);
+        showAlert('Error adding reply. Please try again.', 'error');
+    });
 }
 
 function deleteComment(commentId) {
@@ -570,26 +682,26 @@ document.getElementById('addCommentForm').addEventListener('submit', function(e)
     
     const formData = new FormData(this);
     const token = getToken();
-    
+    const content = formData.get('content');
+    // Emit via Socket.IO first for real-time UX; backend also persists in handler
+    // if (window.socket && token && content) {
+    //     window.socket.emit('new_comment', { post_id: postId, content: content, token: token });
+    // }
+    // Also call REST to keep compatibility (optional)
     fetch(`/comment/post/${postId}/add/`, {
         method: 'POST',
-        headers: {
-            'Authorization': 'Bearer ' + token
-        },
+        headers: { 'Authorization': 'Bearer ' + token },
         body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
+    }).then(r=>r.json()).then(data=>{
         if (data.status === 'success') {
-            showAlert('Comment added successfully!', 'success');
             document.getElementById('commentContent').value = '';
-            loadComments(); // Reload comments
+            // Comments will arrive via socket; fallback refresh
+            setTimeout(loadComments, 300);
         } else {
-            showAlert('Error: ' + data.message, 'error');
+            showAlert('Error: ' + (data.message||'Unable to add comment'), 'error');
         }
-    })
-    .catch(error => {
-        console.error('Error:', error);
+    }).catch(err=>{
+        console.error('Error:', err);
         showAlert('An error occurred while adding the comment.', 'error');
     });
 });
