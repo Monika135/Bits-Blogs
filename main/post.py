@@ -159,15 +159,31 @@ def delete_post(pid):
 @jwt_required()
 def all_post():
     current_user_id = get_jwt_identity()
-    posts = Posts.query.all()
+
+    # --- Pagination & Search Params ---
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 3, type=int)
+    search_query = request.args.get('search', '', type=str).strip()
+
+    # --- Base Query ---
+    query = Posts.query
+
+    # --- Full-Text Search (PostgreSQL) ---
+    if search_query:
+        query = query.filter(
+            (Posts.title.ilike(f'%{search_query}%')) |
+            (Posts.content.ilike(f'%{search_query}%'))
+        )
+    # --- Paginate & Order ---
+    pagination = query.order_by(Posts.created_at.desc()).paginate(page=page, per_page=per_page)
     posts_list = []
 
-    for post in posts:
+    for post in pagination.items:
         user = Users.query.get(post.author_id)
-        post_data = {
+        posts_list.append({
             'post_id': post.post_id,
             'author_id': post.author_id,
-            'author_username': user.username,
+            'author_username': user.username if user else "Unknown",
             'title': post.title,
             'content': post.content,
             'image_url': post.image,
@@ -179,10 +195,19 @@ def all_post():
             'can_delete': can_manage_post(current_user_id, post=post),
             'like_count': post.get_like_count(),
             'is_liked': post.is_liked_by(current_user_id)
-        }
-        posts_list.append(post_data)
+        })
 
-    return jsonify({"posts": posts_list}), 200
+    # --- Metadata for Pagination ---
+    meta = {
+        "page": pagination.page,
+        "per_page": pagination.per_page,
+        "total_pages": pagination.pages,
+        "total_items": pagination.total,
+        "has_next": pagination.has_next,
+        "has_prev": pagination.has_prev
+    }
+
+    return jsonify({"posts": posts_list, "meta": meta}), 200
 
 
 @post.route('/like_post/<uuid:post_id>/', methods=['POST'])
